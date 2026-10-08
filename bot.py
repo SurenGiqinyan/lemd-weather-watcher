@@ -1,66 +1,58 @@
-from bs4 import BeautifulSoup
-import json
 import os
 import requests
+from bs4 import BeautifulSoup
 
-# URL страницы погоды аэропорта Мадрида
-URL = 'https://www.weather.gov/wrh/timeseries?site=lemd'
+URL = "https://www.weather.gov/wrh/timeseries?site=lemd"
+# Ваш вебхук из n8n, куда слать SMS/уведомление при изменении
+N8N_WEBHOOK_URL = "ЗДЕСЬ_УКАЖИТЕ_ВАШ_URL_ВЕБХУКА_N8N"
 
-# ЗАМЕНИТЕ НА ВАШ PRODUCTION URL ИЗ n8n!
-N8N_WEBHOOK_URL = 'https://gevorgghevondyan.app.n8n.cloud/webhook/weather-update-lemd'
-# Файл для хранения времени последней успешной проверки
-STATE_FILE = 'last_checked_time.txt'
-
-
-def get_latest_weather():
-  headers = {'User-Agent': 'Mozilla/5.0'}
-  response = requests.get(URL, headers=headers)
-  if response.status_code != 200:
-    print('Ошибка доступа к сайту погоды')
-    return None
-
-  soup = BeautifulSoup(response.text, 'html.parser')
-  table = soup.find('table')
-  if not table:
-    return None
-
-  rows = table.find_all('tr')
-  for row in reversed(rows):
-    cols = row.find_all('td')
-    if len(cols) > 5:
-      time_str = cols[0].text.strip()
-      temp_c = cols[1].text.strip()
-      return {'time': time_str, 'temp': temp_c, 'raw_html': str(row)}
-
-  return None
-
+def get_current_temperature():
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    response = requests.get(URL, headers=headers)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    
+    # Парсим погоду с weather.gov (ищем блок/ячейку с температурой)
+    # На этой странице данные обычно в таблице таймсерии. 
+    # Замените этот селектор под ваш текущий парсер, который вы уже использовали:
+    temp_element = soup.find('td', class_='data') # Пример, поставьте ваш селектор
+    
+    # Если вы уже парсили температуру раньше, просто вставьте свой рабочий кусок кода получения температуры ниже:
+    # --- НАЧАЛО ВАШЕГО ПАРСЕРА ---
+    temperature = temp_element.text.strip() if temp_element else "Unknown"
+    # --- КОНЕЦ ВАШЕГО ПАРСЕРА ---
+    
+    return temperature
 
 def main():
-  current_data = get_latest_weather()
-  if not current_data:
-    return
+    current_temp = get_current_temperature()
+    print(f"Текущая температура с сайта: {current_temp}")
 
-  current_time = current_data['time']
+    temp_file = "last_temp.txt"
+    
+    # Читаем старую температуру, если она сохранилась с прошлого запуска
+    saved_temp = None
+    if os.path.exists(temp_file):
+        with open(temp_file, "r") as f:
+            saved_temp = f.read().strip()
 
-  last_time = ''
-  if os.path.exists(STATE_FILE):
-    with open(STATE_FILE, 'r') as f:
-      last_time = f.read().strip()
+    print(f"Последняя сохраненная температура: {saved_temp}")
 
-  if current_time != last_time:
-    print(
-        f'Обнаружены новые данные! Время: {current_time}. Отправляем в n8n...'
-    )
-    res = requests.post(N8N_WEBHOOK_URL, json=current_data)
-    if res.status_code == 200:
-      with open(STATE_FILE, 'w') as f:
-        f.write(current_time)
-      print('Успешно отправлено в n8n!')
+    # Сравниваем
+    if current_temp != saved_temp:
+        print("⚡ Температура изменилась! Отправляем запрос в n8n...")
+        
+        payload = {"temperature": current_temp}
+        try:
+            response = requests.post(N8N_WEBHOOK_URL, json=payload)
+            print(f"Ответ от n8n: {response.status_code}")
+        except Exception as e:
+            print(f"Ошибка отправки в n8n: {e}")
     else:
-      print(f'Ошибка отправки веб-хука: {res.status_code}')
-  else:
-    print('Новых данных пока нет. Сайт не обновлялся.')
+        print("💤 Температура не изменилась. Ничего не отправляем в n8n (экономим кредиты).")
 
+    # Записываем актуальную температуру для следующего запуска
+    with open(temp_file, "w") as f:
+        f.write(current_temp)
 
-if __name__ == '__main__':
-  main()
+if __name__ == "__main__":
+    main()
