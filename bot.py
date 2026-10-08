@@ -7,8 +7,7 @@ import requests
 URL = 'https://www.weather.gov/wrh/timeseries?site=lemd'
 
 # ЗАМЕНИТЕ НА ВАШ PRODUCTION URL ИЗ n8n!
-N8N_WEBHOOK_URL = 'https://gevorgghevondyan.app.n8n.cloud/webhook-test/weather-update-lemd'
-
+N8N_WEBHOOK_URL = 'https://gevorgghevondyan.app.n8n.cloud/webhook/weather-update-lemd'
 # Файл для хранения времени последней успешной проверки
 STATE_FILE = 'last_checked_time.txt'
 
