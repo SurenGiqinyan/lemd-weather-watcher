@@ -3,7 +3,7 @@ name: Check LEMD Weather
 on:
   repository_dispatch:
     types: [trigger_from_cron]
-  workflow_dispatch: # Позволяет запускать вручную кнопку "Run workflow" в интерфейсе GitHub
+  workflow_dispatch:
 
 jobs:
   run-script:
@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests
+          pip install requests beautifulsoup4
 
       - name: Run script
         run: python bot.py
