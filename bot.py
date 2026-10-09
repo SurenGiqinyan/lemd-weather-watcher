@@ -27,21 +27,38 @@ def main():
         print("❌ Не удалось получить температуру.")
         return
 
-    # ТЕСТОВЫЙ РЕЖИМ: Отправка выполняется при КАЖДОМ запуске
-    print("🧪 ТЕСТОВЫЙ РЕЖИМ: Принудительно отправляем запрос в n8n...")
-    payload = {
-        "temperature": f"{curr_temp}°C",
-        "mode": "test_run"
-    }
-    
-    try:
-        res = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=10)
-        print(f"✅ Ответ от n8n: статус {res.status_code}")
-    except Exception as e:
-        print(f"❌ Ошибка отправки в n8n: {e}")
+    temp_file = "last_temp.txt"
+    saved_temp = None
 
-    # Записываем температуру в файл
-    with open("last_temp.txt", "w") as f:
+    # Считываем сохраненное значение
+    if os.path.exists(temp_file):
+        try:
+            with open(temp_file, "r") as f:
+                saved_temp = float(f.read().strip())
+        except ValueError:
+            saved_temp = None
+
+    print(f"Сохраненная ранее температура: {saved_temp}°C")
+
+    # Сравнение: отправляем ТОЛЬКО если текущая температура строго ВЫШЕ сохраненной
+    if saved_temp is not None and curr_temp > saved_temp:
+        print(f"🔥 Температура выросла ({saved_temp}°C ➡️ {curr_temp}°C)! Отправляем в n8n...")
+        payload = {
+            "temperature": f"{curr_temp}°C",
+            "previous_temperature": f"{saved_temp}°C"
+        }
+        try:
+            res = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=10)
+            print(f"✅ Ответ от n8n: статус {res.status_code}")
+        except Exception as e:
+            print(f"❌ Ошибка отправки в n8n: {e}")
+    elif saved_temp is None:
+        print("🚀 Первый запуск: фиксируем базовую температуру без вызова n8n.")
+    else:
+        print(f"💤 Температура не выросла (Было: {saved_temp}°C, Стало: {curr_temp}°C). n8n не вызываем.")
+
+    # Обновляем кэш свежим значением
+    with open(temp_file, "w") as f:
         f.write(str(curr_temp))
 
 if __name__ == "__main__":
