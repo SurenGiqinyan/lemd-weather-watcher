@@ -1,58 +1,67 @@
 import os
 import requests
-from bs4 import BeautifulSoup
 
-URL = "https://www.weather.gov/wrh/timeseries?site=lemd"
-# Ваш вебхук из n8n, куда слать SMS/уведомление при изменении
-N8N_WEBHOOK_URL = "ЗДЕСЬ_УКАЖИТЕ_ВАШ_URL_ВЕБХУКА_N8N"
+# 1. Вставьте сюда ВАШУ реальную ссылку на Webhook из n8n
+N8N_WEBHOOK_URL = "https://ВАШ_ДОМЕН_N8N/webhook/ВАШ_ИДЕНТИФИКАТОР"
+
+# Публичный API погоды для станции LEMD (Мадрид)
+WEATHER_API_URL = "https://aviationweather.gov/api/data/metar?ids=LEMD&format=json"
 
 def get_current_temperature():
     headers = {'User-Agent': 'Mozilla/5.0'}
-    response = requests.get(URL, headers=headers)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
-    # Парсим погоду с weather.gov (ищем блок/ячейку с температурой)
-    # На этой странице данные обычно в таблице таймсерии. 
-    # Замените этот селектор под ваш текущий парсер, который вы уже использовали:
-    temp_element = soup.find('td', class_='data') # Пример, поставьте ваш селектор
-    
-    # Если вы уже парсили температуру раньше, просто вставьте свой рабочий кусок кода получения температуры ниже:
-    # --- НАЧАЛО ВАШЕГО ПАРСЕРА ---
-    temperature = temp_element.text.strip() if temp_element else "Unknown"
-    # --- КОНЕЦ ВАШЕГО ПАРСЕРА ---
-    
-    return temperature
+    try:
+        response = requests.get(WEATHER_API_URL, headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) > 0:
+                temp = data[0].get('temp')
+                if temp is not None:
+                    return float(temp)
+    except Exception as e:
+        print(f"Ошибка получения данных погоды: {e}")
+    return None
 
 def main():
-    current_temp = get_current_temperature()
-    print(f"Текущая температура с сайта: {current_temp}")
+    curr_temp = get_current_temperature()
+    print(f"Текущая температура: {curr_temp}°C")
+
+    if curr_temp is None:
+        print("❌ Не удалось получить температуру.")
+        return
 
     temp_file = "last_temp.txt"
-    
-    # Читаем старую температуру, если она сохранилась с прошлого запуска
     saved_temp = None
+
+    # Считываем предыдущую температуру из кэша
     if os.path.exists(temp_file):
-        with open(temp_file, "r") as f:
-            saved_temp = f.read().strip()
-
-    print(f"Последняя сохраненная температура: {saved_temp}")
-
-    # Сравниваем
-    if current_temp != saved_temp:
-        print("⚡ Температура изменилась! Отправляем запрос в n8n...")
-        
-        payload = {"temperature": current_temp}
         try:
-            response = requests.post(N8N_WEBHOOK_URL, json=payload)
-            print(f"Ответ от n8n: {response.status_code}")
+            with open(temp_file, "r") as f:
+                saved_temp = float(f.read().strip())
+        except ValueError:
+            saved_temp = None
+
+    print(f"Предыдущая сохраненная температура: {saved_temp}°C")
+
+    # СРАВНЕНИЕ: отправка в n8n выполняется СТРОГО при РОСТЕ температуры
+    if saved_temp is not None and curr_temp > saved_temp:
+        print(f"🔥 Температура выросла ({saved_temp}°C ➡️ {curr_temp}°C)! Отправляем запрос в n8n...")
+        payload = {
+            "temperature": f"{curr_temp}°C",
+            "previous_temperature": f"{saved_temp}°C"
+        }
+        try:
+            res = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=10)
+            print(f"Ответ от n8n: статус {res.status_code}")
         except Exception as e:
             print(f"Ошибка отправки в n8n: {e}")
+    elif saved_temp is None:
+        print("🚀 Первый запуск: записываем базовую температуру в кэш без отправки в n8n.")
     else:
-        print("💤 Температура не изменилась. Ничего не отправляем в n8n (экономим кредиты).")
+        print(f"💤 Температура не изменилась или упала (Было: {saved_temp}°C, Стало: {curr_temp}°C). n8n не вызываем.")
 
-    # Записываем актуальную температуру для следующего запуска
+    # Всегда обновляем сохраненное значение для следующей проверки
     with open(temp_file, "w") as f:
-        f.write(current_temp)
+        f.write(str(curr_temp))
 
 if __name__ == "__main__":
     main()
