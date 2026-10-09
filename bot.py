@@ -2,7 +2,7 @@ import os
 import requests
 
 # 1. Вставьте сюда ВАШУ реальную ссылку на Webhook из n8n
-N8N_WEBHOOK_URL = "https://ВАШ_ДОМЕН_N8N/webhook/ВАШ_ИДЕНТИФИКАТОР"
+N8N_WEBHOOK_URL = "https://gevorgghevondyan.app.n8n.cloud/webhook/weather-update-lemd"
 
 # Публичный API погоды для станции LEMD (Мадрид)
 WEATHER_API_URL = "https://aviationweather.gov/api/data/metar?ids=LEMD&format=json"
