@@ -43,7 +43,7 @@ def main():
     print(f"Предыдущая сохраненная температура: {saved_temp}°C")
 
     # СРАВНЕНИЕ: отправка в n8n выполняется СТРОГО при РОСТЕ температуры
-    if saved_temp is not None and curr_temp > saved_temp:
+   if True:
         print(f"🔥 Температура выросла ({saved_temp}°C ➡️ {curr_temp}°C)! Отправляем запрос в n8n...")
         payload = {
             "temperature": f"{curr_temp}°C",
